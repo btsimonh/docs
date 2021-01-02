@@ -1,8 +1,15 @@
-The Bluetooth section of Tasmota currently consists of 2 driver classes, which, not least due to hardware restrictions, cannot be used together.  
-On the one hand there is support for the use of "iBeacons" on some modules of the HM-1x family and on ESP32 internal Bluetooth.  
-The second part consists of 3 drivers that can read the data from BLE sensors from the relatively diverse Xiaomi universe. These drivers offer very basic beacon functionality too.  
-  
-  
+Bluetooth in Tasmota consists of:
+
+## ESP8266 or ESP32 via HM-1x or nRF24L01(+)
+This allows for the receiving of BLE advertisments from BLE devices, including "iBeacons"
+For this style, #undef USE_BLE_ESP32 
+
+## ESP32 native Bluetooth Low Energy support
+This allows for the receiving of BLE advertisments from BLE devices, including "iBeacons" and BLE sensors, but also for the control of simple BLE devices, providing for reading, writing and receiving notifications. 
+For this style, #define USE_BLE_ESP32 
+Be aware, enabling of the native BLE on ESP32 has an impact on wifi performance.  Although later SDK helped a bit, expect more lag on the web interface and on MQTT.
+If only controlling BLE devices, then scanning can be disabled, wnhich will minimise wifi impact. 
+
 !!! info "Presence detection with iBeacons or BLE sensor gateway using HM-1x or nRF24L01(+) peripherals"
 
 ## iBeacon  
@@ -25,6 +32,7 @@ You must [compile your build](Compile-your-build) for the ESP32 (since v9.1). Ch
 
 ```
 #ifdef ESP32
+  #define USE_BLE_ESP32
   #define USE_IBEACON_ESP32    // Use internal ESP32 Bluetooth module
 #endif // ESP32
 ```
@@ -37,18 +45,19 @@ This driver reports all beacons found during a scan with its ID (derived from be
 Every beacon report is published as an MQTT tele/%topic%/SENSOR in a separate message:
 
 ```json
-tele/ibeacon/SENSOR = {"Time":"2020-03-24T20:09:40","IBEACON_FF34C21G2174":{"RSSI":-81}}
-tele/ibeacon/SENSOR = {"Time":"2020-03-24T20:09:42","IBEACON_DEAABC788BC1":{"RSSI":-60}}
+tele/ibeacon/SENSOR = {"Time":"2021-01-02T12:08:40","IBEACON":{"MAC":"A4C1387FC1E1","RSSI":-56,"STATE":"ON"}}
 ```
 
 If the beacon can no longer be found during a scan and the timeout interval has passed the beacon's RSSI is set to zero (0) and it is no longer displayed in the webUI
 
 ```json
-tele/ibeacon/SENSOR = {"Time":"2020-03-24T20:05:00","IBEACON_DEAABC788BC1":{"RSSI":-0}}
+tele/ibeacon/SENSOR = {"Time":"2021-01-02T12:08:40","IBEACON":{"MAC":"A4C1387FC1E1","RSSI":-56,"STATE":"OFF"}}
 ```
 
+Additional fields will be present depending upon the beacon, e.g. NAME, UID, MAJOR, MINOR.
+
 !!! tip
-    When first connected some modules will be in peripheral mode. You have to change it to central mode using commands `Sensor52 1` and `Sensor52 2`.
+    If using an extenral module, When first connected some modules will be in peripheral mode. You have to change it to central mode using commands `Sensor52 1` and `Sensor52 2`.
 
 ### Supported Devices
 <img src="../_media/bluetooth/nRF51822.png" width=155 align="right">
@@ -70,7 +79,7 @@ Cheap "iTag" beacons with a beeper. The battery on these lasts only about a mont
 <img src="../_media/bluetooth/itag.png" width=225><img src="../_media/bluetooth/itag2.png" width=225><img src="../_media/bluetooth/itag3.png" width=225>
 
 !!! tip
-    You can activate a beacon with a beeper using command `IBEACON_%BEACONID%_RSSI 99` (ID is visible in webUI and SENSOR reports). This command can freeze the Bluetooth module and beacon scanning will stop. After a reboot of Tasmota the beacon will start beeping and scanning will resume.
+    You can activate a beacon with a beeper using command `IBEACON_%BEACONID%_RSSI 99` (ID is visible in webUI and SENSOR reports). This command can freeze the Bluetooth module and beacon scanning will stop. After a reboot of Tasmota the beacon will start beeping and scanning will resume. (untested on ESP32 native BLE)
   
   
   
@@ -186,7 +195,9 @@ This key and the corresponding MAC of the sensor can be injected with the NRFKEY
 rule1 on System#Boot do backlog NRFkey 00112233445566778899AABBCCDDEEFF112233445566; NRFkey 00112233445566778899AABBCCDDEEFF112233445566; NRFPage 6; NRFUse 0; NRFUse 4 endon
 ```  
 (key for two sensors, 6 sensors per page in the WebUI, turn off all sensors, turn on LYWS03)  
-  
+
+(note: for the native ESP32 MI32 driver, the key command is MI32Key, not NRFkey)
+
 LYWSD03MMC sends encrypted sensor data every 10 minutes. As there are no confirmed reports about correct battery presentation of the sensor (always shows 99%), this function is currently not supported.  
 MJYD2S sends motion detection events and 2 discrete illuminance levels (1 lux or 100 lux for a dark or bright environment). Additionally battery level and contiguous time without motion in discrete growing steps (no motion time = NMT).    
  
@@ -197,7 +208,11 @@ The idea is to provide drivers with as many automatic functions as possible. Bes
 The sensor namings are based on the original sensor names and shortened if appropriate (Flower care -> Flora). A part of the MAC will be added to the name as a suffix.  
 All sensors are treated as if they are physically connected to the ESP8266 device. For motion and remote control sensors MQTT-messages will be published in (nearly) real time.
 The ESP32 and the HM-1x-modules are real BLE devices whereas the NRF24L01 (+) is only a generic 2.4 GHz transceiver with very limited capabilities.  
-  
+
+With the USE_BLE_ESP32 define set, the ESP32 Bluetooth allows for both iBeacon and Sensors to be used simultaneously in one build.
+It also allows for some basic BLE configuration and veiwing through the web interface.
+
+
 ##### Options to read out the LYWSD03MMC  
   
 1. Generate a bind_key  
@@ -355,3 +370,478 @@ CID - company identifier
 SVC - service data  
 UUID - service or class UUID  
 
+
+## Generic BLE driver - #define USE_BLE_ESP32  
+<details>
+  <summary>Click to expand Generic BLE driver</summary>
+
+This is the basis for ESP32 native Bluetooth low energy going forwards.
+The base level driver provides a consistent mechanism for listening for advertisments, and for simple accesses to BLE devices.
+It provides the ability to enable/disable BLE from the web interface (stored in configuration), ability to turn on Active scanning (not stored), and a simple list of observed devices in the web configuration.
+
+It also provides some basic BLE commands and controls which can be used to implement driving BLE devices from external sources - the same capabilities are offered to other drivers for development purposes. 
+
+### Commands:
+
+### BLEDebug
+BLEDebug - log more information
+BLEDebug1 - log less information (default)
+
+### BLEDevices
+BLEDevices/BLEDevices1 - Cause a tele msg with devices
+BLEDevices0 - Clear device list.
+
+### BLEMaxAge
+The ‘Age’ of a BLE device is the time since an advertisement was last seen.
+The BLE driver will remove devices from the displayed list when they hit a maximum age, the default being 600s.
+If set to zero, devices will never be forgotten.
+
+BLEMaxAge - display current max age for a BLE device before it is removed (in seconds)
+BLEMaxAge seconds - set the Max age in seconds for a BVLE device before it is removed from those listed.
+
+### BLEAdv
+BLEADV0 - disable MQTT list of devices
+BLEADV1 - (default) enable MQTT list of devices
+
+The list of devices is published on topic 
+tele/tasmota_XXXXX/BLE
+And looks like:
+```
+{
+  "active":{
+    "37E6BCD640AC":{"n":"","r":-58},
+    "001A22092C9A":{"n":"CC-RT-M-BLE","r":-87, "a":"MyEQ3"},
+    "4C65A8DAF607":{"n":"MJ_HT_V1","r":-73},
+    "001A22092CDB":{"n":"CC-RT-M-BLE","r":-86},
+    "D6E0138D9201":{"n":"Charge 3","r":-75},
+    "4C65A8DAF43A":{"n":"MJ_HT_V1","r":-78},
+    "001A22092FB7":{"n":"CC-RT-M-BLE","r":-88},
+    "21C59A55A412":{"n":"","r":-52}
+  }
+}
+```
+
+I.e. a JSON where the keys are the MAC address of devices, and each key has a value of a structure containing a key ‘n’, which is the device name, and a key ‘r’ which is the rssi, and a key ‘a’ if an alias exists for this MAC.
+
+### BLEOp
+This is the command to use to read/write/get notification from a device.
+This functionality allows you to control devices which are not supported by Tasmotas drivers.
+BLEOp0 - list operation currently present.
+
+BLEOp1 - set details about an operation and queue it.
+BLEOp1 m:MAC|Alias s:svc c:characteristic n:notifychar w:hextowrite u:unique r go
+(everything after svc is optional)
+
+BLEOp2 - queue an operation setup with BLEOp1 if you did not state ‘go’
+
+returns: Done|FailCreate|FailNoOp|FailQueue|InvalidIndex|{"opid":opid,"u":unique}
+
+Example:
+Write: ‘03’ to 
+service 3e135142-654f-9090-134a-a6ff5bb77046
+characteristic 3fa4585a-ce4a-3bad-db4b-b8df8179ea09
+Unique 1234 (32 bit number)
+
+And wait for a notify from 
+d0e8434d-cd29-0996-af41-6c90f4e0eb2a
+
+`BLEOp1 M:001A22092CDB s:3e135142-654f-9090-134a-a6ff5bb77046 c:3fa4585a-ce4a-3bad-db4b-b8df8179ea09 w:03 n:d0e8434d-cd29-0996-af41-6c90f4e0eb2a u:1234 go`
+
+Read:
+service 3e135142-654f-9090-134a-a6ff5bb77046
+characteristic 3fa4585a-ce4a-3bad-db4b-b8df8179ea09
+
+`BLEOp1 M:001A22092CDB s:3e135142-654f-9090-134a-a6ff5bb77046 c:3fa4585a-ce4a-3bad-db4b-b8df8179ea09 r u:1235 go`
+
+When an BLEOp0 is called, MQTT send one or more:
+```
+21:43:08 MQT: tele/tasmota_esp32/BLE = {"BLEOperation":{"opid":"0","stat":"1","state":"START","MAC":"001A22092CDB","svc":"3e135142-654f-9090-134a-a6ff5bb77046","char":"3fa4585a-ce4a-3bad-db4b-b8df8179ea09","notifychar":"d0e8434d-cd29-0996-af41-6c90f4e0eb2a","wrote":"03"}}
+```
+When the operation is done/failed, the data is sent to MQTT again.
+
+A failure may look like:
+```
+21:43:10 MQT: tele/tasmota_esp32/BLE = {"BLEOperation":{"opid":"0","stat":"-11","state":"FAILCONNECT","MAC":"001A22092CDB","svc":"3e135142-654f-9090-134a-a6ff5bb77046","char":"3fa4585a-ce4a-3bad-db4b-b8df8179ea09","notifychar":"d0e8434d-cd29-0996-af41-6c90f4e0eb2a","wrote":"03"}}
+```
+
+A success:
+```
+21:43:22 MQT: tele/tasmota_esp32/BLE = {"BLEOperation":{"opid":"1","stat":"7","state":"NOTIFIED","MAC":"001A22092CDB","svc":"3e135142-654f-9090-134a-a6ff5bb77046","char":"3fa4585a-ce4a-3bad-db4b-b8df8179ea09","notifychar":"d0e8434d-cd29-0996-af41-6c90f4e0eb2a","wrote":"03","notify":"020109000429"}}
+```
+### BLEMode
+BLEMode0 -> kill BLE completely
+BLEMode1 -> start BLE, but don’t scan unless asked to
+BLEMode2 -> (default) start BLE, do regular 20s scans
+
+### BLEDetails
+BLEDetails0 -> (default) don’t send me anything
+BLEDetails1 MAC -> send me details for mac once
+BLEDetails2 MAC -> send me details for mac every advert if possible
+BLEDetails3 -> send me details for ALL macs every advert if possible
+
+MQTT sends look like:
+```
+MQT: tele/tasmota_esp32/BLE = {
+  "details":{
+    "mac":"001A22092C9A","p":"0C0943432D52542D4D2D424C450CFF0000000000000000000000"
+  }
+}
+```
+
+### BLEScan
+BLEScan0 0 -> (default) Scans are passive
+BLEScan0 1 -> Scans are active
+BLEScan/BLEScan1 -> do a scan now if BLEMode1
+BLEScan/BLEScan1 timesec -> do a scan now if BLEMode1 for timesec seconds
+
+### BLEAlias
+BLEAlias mac=name mac=name
+
+Adds an alias for mac
+The alias may be used in place of a mac address for any command.
+
+BLEAlias2 - clear all aliases.
+
+
+## Usage notes
+
+BLEMode1:
+If you use BLEMode1, then both iBeacon and MI32 will stop receiving adverts (unless you manually trigger a scan with BLEScan0).
+
+However, you CAN still send BLEOp commands, and expect it to connect and operate.
+
+BLEScan1 0/1:
+I have not investigated in any depth as to the effect of using active vs passive scans.
+Note that for some devices, the advertisement data received is different for passive and active mode.
+
+BLEOp:
+It will fail to add an operation to the queue if 10 are already queued.  However, the queue management could be enhanced, so probably best to serialise any operations from a driver (e.g. the MI32 driver uses Operations to read the battery level on some sensors.  It queues one operation, and waits for that to finish before queuing another).
+This leaves room for both other drivers, and also user operations to be queued.
+If an external application is adding operations, the same should be applied - queue one, and wait for it to succeed or fail before adding another.
+We could reasonably expect the driver to work with up to 6 operations in progress - but if one source of operations steals all 6 slots at once, it will affect others who may be wanting to perform operations.
+
+Normal operations against BLE devices will be very variable with regard to the time taken.  E.g. with the connection timeout set to 30s, you can expect an operation against a device which cannot be reached to take 30s.
+Since all operations are performed serially, any single operation may take up to 3 minutes to fail (e.g. if there were 6 in progress).  
+
+We COULD alleviate this by running multiple BLE clients at the same time.  The driver has been designed so that this could be possible in the future, but first we must establish it’s true stability in use.
+
+## Creating a driver which uses BLE
+xdrv_47_BLE_ESP32 is designed to be used by other drivers which need to use BLE advertisements or interact with BLE devices.
+
+Two drivers that use BLE_ESP32 are:
+tasmota\xsns_62_MI_ESP32_BLE_ESP32.ino
+tasmota\xsns_52_ibeacon_BLE_ESP32.ino
+
+Please make your driver depends upon 
+
+`#ifdef USE_BLE_ESP32`
+
+Include the file 
+`#include "xdrv_47_BLE_ESP32.h"`
+
+All functions and constants are in namespace BLE_ESP32::
+
+### ‘Hearing’ advertisements:
+
+Create a function like:
+
+```
+int MyDriverNameAdvertismentCallback(BLE_ESP32::ble_advertisment_t *pStruct)
+{
+  // the NimBLE advertisement...
+  BLEAdvertisedDevice *advertisedDevice = pStruct->advertisedDevice;
+
+  // some things are already extracted:
+  int RSSI = pStruct->RSSI;
+  const uint8_t *addr = pStruct->addr;
+  const char *name = pStruct->name;
+
+  AddLog_P(LOG_LEVEL_DEBUG,PSTR("Adv received for %s(%s)"),
+    ((std::string)advertisedDevice->getAddress()).c_str(), name);
+  return 0;
+}
+```
+From the callback, or anything you call from the callback, don’t do anything directly with Tasmota globals, or call any MQTT functions or standard log functions!
+
+Register this callback with 
+
+`BLE_ESP32::registerForAdvertismentCallbacks("MyDriverName",  MyDriverNameAdvertismentCallback);`
+
+
+
+Performing Read, Write on a device, and/or requesting the next Notify:
+
+The BLE operations are controlled by:
+
+A structure:
+`BLE_ESP32::generic_sensor_t *op = nullptr;`
+
+Functions:
+```
+  // ALWAYS use this function to create a new one.
+  int res = BLE_ESP32::newOperation(&op);
+
+  // Queue with this.
+  int res = BLE_ESP32::extQueueOperation(&op);
+  if (!res){
+    // if it fails to add to the queue, do please delete it
+    BLE_ESP32::freeOperation(&op);
+    AddLog_P(LOG_LEVEL_ERROR,PSTR("Failed to queue new operation - deleted"));
+  }
+```
+
+Operations are added to a limited queue, and performed serially.
+BLE is quite SLOW, so you can expect some seconds before a response.
+Also, we don’t hurry things.  Operations are only transferred from the queue to the active 
+Operation once per second.  Similarly, completed operations are only examine once per seconds.
+
+Whilst an operation is in progress, Adverts will stop coming in.
+
+Operations have a status, +ve -> in progress or success. -ve -> failed.
+You can get the name of a status from BLE_ESP32::getStateString(state);
+States are from the set defined in the .h file GEN_STATE_XXXX
+
+
+
+
+
+A generic function for running an operation may be:
+```
+int genericOpCompleteFn(BLE_ESP32::generic_sensor_t *op){
+  if (op->state <= GEN_STATE_FAILED){
+    AddLog_P(LOG_LEVEL_ERROR,PSTR("Operation failed with state %s", 
+       BLE_ESP32::getStateString(op->state));
+    return 0;
+  }
+
+  //Do something with your shiny data which was read 
+  If (op->readlen){
+   If (!op->readtruncated){
+   }
+  }
+  //Do something with your shiny data which was notified 
+  If (op->notifylen){
+   If (!op->notifytruncated){
+   }
+  }
+
+
+  // note: the op will be deleted automatically once all calls are over.
+  return 0;
+}
+
+
+int myspecialdatamodifyer(BLE_ESP32::generic_sensor_t *op){
+  // change the data to write based on the data read.
+}
+
+
+
+#define OPTYPE_READ 0
+#define OPTYPE_READMODIFYWRITE 1
+
+
+bool BLEOperation( utin8_t *addr, int optype, const char *svc, const char *charactistic, 
+  const char *notifychar = nullptr, const uint8_t *data = nullptr, int datalen = 0) {
+  
+  if (!svc || !svc[0]){
+    return 0;
+  }
+
+  BLE_ESP32::generic_sensor_t *op = nullptr;
+
+  // ALWAYS use this function to create a new one.
+  int res = BLE_ESP32::newOperation(&op);
+  if (!res){
+    AddLog_P(LOG_LEVEL_ERROR,PSTR("Can't get a newOperation from BLE"));
+    return 0;
+  } else {
+    AddLog_P(LOG_LEVEL_DEBUG,PSTR("got a newOperation from BLE"));
+  }
+
+  op->addr = NimBLEAddress(addr);
+
+  bool havechar = false;
+  op->serviceUUID = NimBLEUUID(svc);
+  if (charactistic && charactistic[0]){
+    havechar = true;
+    op->characteristicUUID = NimBLEUUID(charactistic);
+  }
+  if (notifychar && notifychar[0]){
+    op->notificationCharacteristicUUID = NimBLEUUID(notifychar);
+  }    
+
+  // if we have data, assume this is a write operation
+  if (data && datalen) {
+    op->writelen = datalen;
+    memcpy(op->dataToWrite, data, datalen);
+  } else {
+    // else if we have a RW characteristic, must be a read operation
+    if (!datalen && havechar){
+      op->readlen = 1; // if we don't set readlen, then it won't read
+    }
+  }
+
+  // the only times we intercept between read and write
+  if (optype == OPTYPE_READMODIFYWRITE){
+    op->readlen = 1; // if we don't set readlen, then it won't read
+    op->readmodifywritecallback = (void *)myspecialdatamodifyer;
+  }
+
+  // this op will call us back on complete or failure.
+  op->completecallback = (void *)genericOpCompleteFn;
+
+  // you can use context to indicate anything you like.
+  uint32_t context = 0; 
+  op->context = (void *)context;
+
+  res = BLE_ESP32::extQueueOperation(&op);
+  if (!res){
+    // if it fails to add to the queue, do please delete it
+    BLE_ESP32::freeOperation(&op);
+    AddLog_P(LOG_LEVEL_ERROR,PSTR("Failed to queue new operation - deleted"));
+  }
+
+  return res;
+}
+```
+
+### Other callbacks:
+
+You can register to know when a scan ends, and also for ALL operations:
+void registerForOpCallbacks(const char *tag, BLE_ESP32::OPCOMPLETE_CALLBACK* pFn);
+void registerForScanCallbacks(const char *tag, BLE_ESP32::SCANCOMPLETE_CALLBACK* pFn);
+
+These are not normally required for a driver.
+
+
+### Other functions:
+A temporary safe logging mechanism.  This has a max of 40 chars, and a max of 30 slots per 50ms.
+This will cause logs to be written if called from a thread other than the main thread/task, but not cause problems with corruption.  
+int BLE_ESP32::SafeAddLog_P(uint32_t loglevel, PGM_P formatP, ...);
+
+
+Interpreting an address supplied by the user:
+Please use this function.
+int BLE_ESP32::getAddr(uint8_t *dest, char *src);
+Returns 0 for invalid/not found, 1 for MAC parsed, 2 for Alias found.
+This will interpret AABBCCDDEEFF or AA:BB:CC:DD:EE:FF or an alias set with BLEAlias.
+dest must be `uint8_t addr[6];`
+Establishing if a device is still present, or get it’s age:
+Please use this function.
+int BLE_ESP32::devicePresent(uint8_t*mac);
+Where mac is the BINARY mac address, array of 6 uint8_t
+Returns 0 for the device having timed out, or age in seconds.
+</details>
+
+
+## EQ3 radiator valve driver
+<details>
+  <summary>Click to expand xdrv_49_BLE_EQ3_TRV</summary>
+
+This driver is for controlling the Bluetooth version of the EQ3 radiator valves.
+
+To enable the driver, you must have the following:
+
+```
+#define USE_BLE_ESP32                             // Add support for ESP32 as a BLE-bridge
+#define USE_EQ3_ESP32                               // Add support for EQ3 TRV radiator valves - 
+```
+
+The EQ3 valves can be controlled and polled via BLE
+
+To list devices and/or see pairing, BLE Active scan must be enabled (command "BLEScan 1", or from configuration).
+
+You MAY use Aliases if set using BLE commands in place of MAC address.
+
+The driver recognises the following BLE names as EQ3 devices:
+"CC-RT-BLE"
+"CC-RT-BLE-EQ"
+"CC-RT-M-BLE"
+
+### Commands:
+
+trv reset - sets retries to zero and finishes the current command
+trv devlist - report seen devices.  Active scanning required, not passive, as it looks for names
+trv scan - same as devlist
+trv MAC state - report general state (see below for MQTT)
+trv MAC raw (hex to send) - send a raw command
+trv MAC on - set temp to 30 -> display ON on EQ3
+trv MAC off - set temp to 4.5 -> display OFF on EQ3
+trv MAC boost - set boost
+trv MAC unboost - turn off boost
+trv MAC lock - manual lock of physical buttons
+trv MAC unlock - manual unlock of physical buttons
+trv MAC auto - set EQ3 to auto mode
+trv MAC manual - set EQ3 to manual mode
+trv MAC eco - set EQ3 to eco mode?
+trv MAC day - set EQ3 to day temp
+trv MAC night - set EQ3 to night temp
+trv MAC settemp 20.5 - set EQ3 to temp
+trv MAC settime - set time to Tasmota time (untested)
+trv MAC settime (hex as per esp32_mqtt_eq3) - set time
+trv MAC offset 1.5 - set offset temp
+trv MAC setdaynight 22 17.5 - set day and night mode temps
+trv MAC setwindowtempdur 12.5 30 - set window open temp and duration in mins
+
+trv MAC reqprofile <0-6> - request a profile for a day fo the week.
+trv MAC setprofile <0-6> 20.5-07:30,17-17:00,22.5-22:00,17-24:00 (up to 7 temp-HH:MM) - set a profile for a day of the week.
+
+Commands may also be sent over MQTT in the normal way, but in addition to:
+
+cmnd/tasmota_E89E98/EQ3/MAC|Alias/cmd payload=params
+
+
+### Responses:
+In response to the commands above, you will get an immediate response:
+`MQT: stat/tasmota_esp32/RESULT = {"trv":"Done|queued|ignoredbusy|invcmd|cmdfail|invidx"}`
+
+Done - the command was of a type which provides an immediate result.
+Queued - the command will be processed by BLE shortly.
+Ignorebusy - You may only have one BLE command in progress at a time.
+Cmdfail - failed to queue the command - maybe other things have ALL available BLE queued commands? - or other fatal failure.
+Invidx - all the commands above are ‘trv1’, so you would get this if you use trv0 or trv2 explicitly.
+
+
+### Results of BLE commands:
+
+Results are sent on MQTT to:
+stat/tasmota_esp32/EQ3/MAC
+e.g.
+`MQT: stat/tasmota_esp32/EQ3/001A22092CDB = {"trv":"00:1a:22:09:2c:db","blestate":"FAILCONNECT","retriesremain":3}`
+
+normal:
+```
+tele/tasmota_E89E98/EQ3/001A22092EE0 = {
+  "trv":"00:1a:22:09:2e:e0",
+  "blestate":DONENOTIFIED, - state of the command - FAILxxx | DONExxxx
+  "raw":"02010900042C", - raw response in hex
+  "temp":22.0, - temp currently set (NOT measured temp)
+  "posn":0, - position of the valve (0-100);
+  "mode":"manual", 
+  "boost":"inactive",
+  "dst":"set", - daylight savings time?
+  "window":"closed",
+  "state":"unlocked",
+  "battery":"GOOD"
+}
+``
+
+holiday:
+as above, but adds ,"holidayend":"YY-MM-DD HH:MM"
+
+when trv mac reqprofile is used:
+`tele/tasmota_E89E98/EQ3 = {"trv":"00:1a:22:09:2e:e0","blestate":DONENOTIFIED,"raw":"02010900042C", "profiledayN":"20.5-07:30,17.0-17:00,22.5-22:00,17.0-24:00"}`
+where N is the day (0-6).
+
+when trv mac setprofile is used:
+`tele/tasmota_E89E98/EQ3 = {"trv":"00:1a:22:09:2e:e0","blestate":DONENOTIFIED,"raw":"02010900042C","profiledayset":N}`
+where N is the day (0-6).
+
+on error:
+`tele/tasmota_E89E98/EQ3 = {"trv":"00:1a:22:09:2e:e0","blestate":"FAILxxxx","retriesremain":<1-3>}`
+when retries exhausted:
+`tele/tasmota_E89E98/EQ3 = {"trv":"00:1a:22:09:2e:e0","blestate":"FAILxxxx"}`
+
+The driver will try a command three times.
+</details>
