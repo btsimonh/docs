@@ -2,7 +2,7 @@ Bluetooth in Tasmota consists of:
 
 ## ESP8266 or ESP32 via HM-1x or nRF24L01(+)
 This allows for the receiving of BLE advertisments from BLE devices, including "iBeacons"
-For this style, #undef USE_BLE_ESP32 
+For this style, `#undef USE_BLE_ESP32`
 
 ## ESP32 native Bluetooth Low Energy support
 This allows for the receiving of BLE advertisments from BLE devices, including "iBeacons" and BLE sensors, but also for the control of simple BLE devices, providing for reading, writing and receiving notifications. 
