@@ -371,43 +371,73 @@ SVC - service data
 UUID - service or class UUID  
 
 
-## Generic BLE driver - #define USE_BLE_ESP32  
-<details>
-  <summary>Click to expand Generic BLE driver</summary>
+## Generic BLE driver (USE_BLE_ESP32)
 
-This is the basis for ESP32 native Bluetooth low energy going forwards.
-The base level driver provides a consistent mechanism for listening for advertisments, and for simple accesses to BLE devices.
-It provides the ability to enable/disable BLE from the web interface (stored in configuration), ability to turn on Active scanning (not stored), and a simple list of observed devices in the web configuration.
+This is the basis for ESP32 native Bluetooth low energy going forwards. The base level driver 
+provides a consistent mechanism for listening for advertisments, and for simple accesses to BLE 
+devices. It provides the ability to enable/disable BLE from the web interface (stored in configuration), ability to turn on Active scanning (not stored), and a simple list of observed devices in the web configuration.
 
 It also provides some basic BLE commands and controls which can be used to implement driving BLE devices from external sources - the same capabilities are offered to other drivers for development purposes. 
 
-### Commands:
+### BLE commands summary:
 
-### BLEDebug
-BLEDebug - log more information
-BLEDebug1 - log less information (default)
+Command|Parameters
+:---|:---
+BLEDebug<x\><a class="cmnd" id="bledebug"></a>|`BLEDebug0`: Disable BLE debug logs (default)<br>`BLEDebug1` or `BLEDebug`: Enable debug in console regarding BLE operation.
+BLEDevices<x\><a class="cmnd" id="bledevices"></a>|`x=1`: Cause a BLE tele msg with active devices list. [BLE JSON details](#json-on-ble-topic)<br>`x=0`: Clears device list.
+BLEMaxAge<a class="cmnd" id="blemaxage"></a>|Set the Max age in seconds for BLE devices.<br>Without arguments, returns current max age for BLE device.<br>The ‘Age’ of a BLE device is the time since an advertisement was last seen. The BLE driver will remove devices from the displayed list when they hit a maximum age, the default being 600s. If set to zero, devices will never be forgotten.
+BLEADV<x\><a class="cmnd" id="bleadv">|`x=0`: Disable MQTT list of active devices list sent at teleperiod<br>`x=1`: Enable MQTT list of active devices sent at teleperiod (default) [BLE JSON details](#json-on-ble-topic).
+BLEOp<x\><a class="cmnd" id="bleop"></a>|Commands to send low level read/write operations to a BLE device. [BLEop details](#bleop-commands)
+BLEMode<x\><a class="cmnd" id="blemode"></a>|`x=0`: Disable BLE feature completely<br>`x=1`: Enable BLE feature but scans are performed on-demand with [BLEScan](#blescan)<br>`x=2`: Enable BLE feature with regular 20s scans.
+BLEDetails<x><a class="cmnd" id="bledetails"></a>|`BLEDetails<x>`: Stop sending details,<br>`BLEDetails1 MAC`: Send details for given MAC once,<br>`BLEDetails2 MAC`: Send details for given MAX on every advert if possible,<br>`BLEDetails3`: Send details for ALL macs every advert if possible. [BLE JSON details](#json-on-ble-topic)
+BLEScan<x><a class="cmnd" id="blescan"></a>|`BLEScan0 0`: Scans are passive (default)<br>`BLEScan0 1`: Enable active scans<br>`BLEScan1`: Perform a single active scan (if BLEMode1)<br>`BLEScan1 timesec`: Perform actve scan for timesec seconds (if BLEMode1).
+BLEAlias<x\><a class="cmnd" id="blealias"></a>|`BLEAlias mac=name`: Create an alias for a device from its MAC address.<br>`BLEAlias2`: Clears the list of aliases.<br>Alias will be used in BLE reports where ever possible. Alias can also be used in commands argument instead of the MAC address.<br>It is possible to specify multiple alias on the same commande line:<br>`BLEAlias MAC1=name1 MAC2=name2 ...`
 
-### BLEDevices
-BLEDevices/BLEDevices1 - Cause a tele msg with devices
-BLEDevices0 - Clear device list.
+### BLE commands detailled description
 
-### BLEMaxAge
-The ‘Age’ of a BLE device is the time since an advertisement was last seen.
-The BLE driver will remove devices from the displayed list when they hit a maximum age, the default being 600s.
-If set to zero, devices will never be forgotten.
+#### BLEOp command
+`BleOp<x>` low-level commands allows to send read/write to a device or get notifications from a device which are is supported bya dedicated Tasmota driver.
 
-BLEMaxAge - display current max age for a BLE device before it is removed (in seconds)
-BLEMaxAge seconds - set the Max age in seconds for a BVLE device before it is removed from those listed.
+Command|Parameters and description
+:---|:---
+`BLEOp0`|Lists operation currently in queue.
+`BLEOp1`|Sets details about an operation and queue it. Full syntax is <br>`BLEOp1 m:MAC|Alias s:svc c:characteristic n:notifychar w:hextowrite u:unique r go`<br>Everything after svc is optional.
+`BLEOp2`|Queues an operation setup with `BLEOp1` if you did not state `go`.<br>returns: `Done`, `FailCreate`, `FailNoOp`, `FailQueue`, `InvalidIndex`, `{"opid":opid,"u":unique}`
 
-### BLEAdv
-BLEADV0 - disable MQTT list of devices
-BLEADV1 - (default) enable MQTT list of devices
+**Example 1: Write operation**
 
-The list of devices is published on topic 
-tele/tasmota_XXXXX/BLE
-And looks like:
+Write `03` to service `3e135142-654f-9090-134a-a6ff5bb77046` with characteristic `3fa4585a-ce4a-3bad-db4b-b8df8179ea09` and unique `1234` (32 bit number) and wait from `d0e8434d-cd29-0996-af41-6c90f4e0eb2a`
 ```
-{
+BLEOp1 M:001A22092CDB s:3e135142-654f-9090-134a-a6ff5bb77046 c:3fa4585a-ce4a-3bad-db4b-b8df8179ea09 w:03 n:d0e8434d-cd29-0996-af41-6c90f4e0eb2a u:1234 go
+```
+
+**Example 2: Read operation**
+
+Read from service `3e135142-654f-9090-134a-a6ff5bb77046` with characteristic `3fa4585a-ce4a-3bad-db4b-b8df8179ea09`
+```
+BLEOp1 M:001A22092CDB s:3e135142-654f-9090-134a-a6ff5bb77046 c:3fa4585a-ce4a-3bad-db4b-b8df8179ea09 r u:1235 go
+```
+
+When an `BLEOp0` is send, the following MQTT is published:
+```
+MQT: tele/%topic%/BLE = {"BLEOperation":{"opid":"0","stat":"1","state":"START","MAC":"001A22092CDB","svc":"3e135142-654f-9090-134a-a6ff5bb77046","char":"3fa4585a-ce4a-3bad-db4b-b8df8179ea09","notifychar":"d0e8434d-cd29-0996-af41-6c90f4e0eb2a","wrote":"03"}}
+```
+When the operation is done/failed, the data is sent to MQTT again.
+
+A failure may look like:
+```
+MQT: tele/%topic%/BLE = {"BLEOperation":{"opid":"0","stat":"-11","state":"FAILCONNECT","MAC":"001A22092CDB","svc":"3e135142-654f-9090-134a-a6ff5bb77046","char":"3fa4585a-ce4a-3bad-db4b-b8df8179ea09","notifychar":"d0e8434d-cd29-0996-af41-6c90f4e0eb2a","wrote":"03"}}
+```
+
+A success:
+```
+MQT: tele/%topic%/BLE = {"BLEOperation":{"opid":"1","stat":"7","state":"NOTIFIED","MAC":"001A22092CDB","svc":"3e135142-654f-9090-134a-a6ff5bb77046","char":"3fa4585a-ce4a-3bad-db4b-b8df8179ea09","notifychar":"d0e8434d-cd29-0996-af41-6c90f4e0eb2a","wrote":"03","notify":"020109000429"}}
+```
+
+### JSON on BLE topic
+The list of active BLE devices is a JSON object published on `tele/%topic%/BLE`. The JSON object has `active` as the 1st level key. The 2nd level object use the MAC address of devices key. Each sub-object contains the device name as `n`, the RSSI as `r` and optionally the alias of the device as `a`:
+```
+MQT: tele/%topic%/BLE = {
   "active":{
     "37E6BCD640AC":{"n":"","r":-58},
     "001A22092C9A":{"n":"CC-RT-M-BLE","r":-87, "a":"MyEQ3"},
@@ -421,127 +451,56 @@ And looks like:
 }
 ```
 
-I.e. a JSON where the keys are the MAC address of devices, and each key has a value of a structure containing a key ‘n’, which is the device name, and a key ‘r’ which is the rssi, and a key ‘a’ if an alias exists for this MAC.
-
-### BLEOp
-This is the command to use to read/write/get notification from a device.
-This functionality allows you to control devices which are not supported by Tasmotas drivers.
-BLEOp0 - list operation currently present.
-
-BLEOp1 - set details about an operation and queue it.
-BLEOp1 m:MAC|Alias s:svc c:characteristic n:notifychar w:hextowrite u:unique r go
-(everything after svc is optional)
-
-BLEOp2 - queue an operation setup with BLEOp1 if you did not state ‘go’
-
-returns: Done|FailCreate|FailNoOp|FailQueue|InvalidIndex|{"opid":opid,"u":unique}
-
-Example:
-Write: ‘03’ to 
-service 3e135142-654f-9090-134a-a6ff5bb77046
-characteristic 3fa4585a-ce4a-3bad-db4b-b8df8179ea09
-Unique 1234 (32 bit number)
-
-And wait for a notify from 
-d0e8434d-cd29-0996-af41-6c90f4e0eb2a
-
-`BLEOp1 M:001A22092CDB s:3e135142-654f-9090-134a-a6ff5bb77046 c:3fa4585a-ce4a-3bad-db4b-b8df8179ea09 w:03 n:d0e8434d-cd29-0996-af41-6c90f4e0eb2a u:1234 go`
-
-Read:
-service 3e135142-654f-9090-134a-a6ff5bb77046
-characteristic 3fa4585a-ce4a-3bad-db4b-b8df8179ea09
-
-`BLEOp1 M:001A22092CDB s:3e135142-654f-9090-134a-a6ff5bb77046 c:3fa4585a-ce4a-3bad-db4b-b8df8179ea09 r u:1235 go`
-
-When an BLEOp0 is called, MQTT send one or more:
+When `BLEDetails` is enabled, a JSON with `details` as 1st level key is published with the following format:
 ```
-21:43:08 MQT: tele/tasmota_esp32/BLE = {"BLEOperation":{"opid":"0","stat":"1","state":"START","MAC":"001A22092CDB","svc":"3e135142-654f-9090-134a-a6ff5bb77046","char":"3fa4585a-ce4a-3bad-db4b-b8df8179ea09","notifychar":"d0e8434d-cd29-0996-af41-6c90f4e0eb2a","wrote":"03"}}
-```
-When the operation is done/failed, the data is sent to MQTT again.
-
-A failure may look like:
-```
-21:43:10 MQT: tele/tasmota_esp32/BLE = {"BLEOperation":{"opid":"0","stat":"-11","state":"FAILCONNECT","MAC":"001A22092CDB","svc":"3e135142-654f-9090-134a-a6ff5bb77046","char":"3fa4585a-ce4a-3bad-db4b-b8df8179ea09","notifychar":"d0e8434d-cd29-0996-af41-6c90f4e0eb2a","wrote":"03"}}
-```
-
-A success:
-```
-21:43:22 MQT: tele/tasmota_esp32/BLE = {"BLEOperation":{"opid":"1","stat":"7","state":"NOTIFIED","MAC":"001A22092CDB","svc":"3e135142-654f-9090-134a-a6ff5bb77046","char":"3fa4585a-ce4a-3bad-db4b-b8df8179ea09","notifychar":"d0e8434d-cd29-0996-af41-6c90f4e0eb2a","wrote":"03","notify":"020109000429"}}
-```
-### BLEMode
-BLEMode0 -> kill BLE completely
-BLEMode1 -> start BLE, but don’t scan unless asked to
-BLEMode2 -> (default) start BLE, do regular 20s scans
-
-### BLEDetails
-BLEDetails0 -> (default) don’t send me anything
-BLEDetails1 MAC -> send me details for mac once
-BLEDetails2 MAC -> send me details for mac every advert if possible
-BLEDetails3 -> send me details for ALL macs every advert if possible
-
-MQTT sends look like:
-```
-MQT: tele/tasmota_esp32/BLE = {
+MQT: tele/%topic%/BLE = {
   "details":{
     "mac":"001A22092C9A","p":"0C0943432D52542D4D2D424C450CFF0000000000000000000000"
   }
 }
 ```
 
-### BLEScan
-BLEScan0 0 -> (default) Scans are passive
-BLEScan0 1 -> Scans are active
-BLEScan/BLEScan1 -> do a scan now if BLEMode1
-BLEScan/BLEScan1 timesec -> do a scan now if BLEMode1 for timesec seconds
+### Usage notes
 
-### BLEAlias
-BLEAlias mac=name mac=name
+`BLEMode1`:
 
-Adds an alias for mac
-The alias may be used in place of a mac address for any command.
+  If you use BLEMode1, then both iBeacon and MI32 will stop receiving adverts (unless you manually trigger a scan with BLEScan0).
 
-BLEAlias2 - clear all aliases.
+  However, you CAN still send BLEOp commands, and expect it to connect and operate.
 
+`BLEScan1 0/1`:
 
-## Usage notes
+  I have not investigated in any depth as to the effect of using active vs passive scans.
+  Note that for some devices, the advertisement data received is different for passive and active mode.
 
-BLEMode1:
-If you use BLEMode1, then both iBeacon and MI32 will stop receiving adverts (unless you manually trigger a scan with BLEScan0).
+`BLEOp`:
 
-However, you CAN still send BLEOp commands, and expect it to connect and operate.
+  It will fail to add an operation to the queue if 10 are already queued.  However, the queue management could be enhanced, so probably best to serialise any operations from a driver (e.g. the MI32 driver uses Operations to read the battery level on some sensors. It queues one operation, and waits for that to finish before queuing another).
+  
+  This leaves room for both other drivers, and also user operations to be queued. If an external application is adding operations, the same should be applied - queue one, and wait for it to succeed or fail before adding another. We could reasonably expect the driver to work with up to 6 operations in progress - but if one source of operations steals all 6 slots at once, it will affect others who may be wanting to perform operations.
 
-BLEScan1 0/1:
-I have not investigated in any depth as to the effect of using active vs passive scans.
-Note that for some devices, the advertisement data received is different for passive and active mode.
+  Normal operations against BLE devices will be very variable with regard to the time taken. E.g. with the connection timeout set to 30s, you can expect an operation against a device which cannot be reached to take 30s. Since all operations are performed serially, any single operation may take up to 3 minutes to fail (e.g. if there were 6 in progress).  
 
-BLEOp:
-It will fail to add an operation to the queue if 10 are already queued.  However, the queue management could be enhanced, so probably best to serialise any operations from a driver (e.g. the MI32 driver uses Operations to read the battery level on some sensors.  It queues one operation, and waits for that to finish before queuing another).
-This leaves room for both other drivers, and also user operations to be queued.
-If an external application is adding operations, the same should be applied - queue one, and wait for it to succeed or fail before adding another.
-We could reasonably expect the driver to work with up to 6 operations in progress - but if one source of operations steals all 6 slots at once, it will affect others who may be wanting to perform operations.
+  We COULD alleviate this by running multiple BLE clients at the same time.  The driver has been designed so that this could be possible in the future, but first we must establish it’s true stability in use.
 
-Normal operations against BLE devices will be very variable with regard to the time taken.  E.g. with the connection timeout set to 30s, you can expect an operation against a device which cannot be reached to take 30s.
-Since all operations are performed serially, any single operation may take up to 3 minutes to fail (e.g. if there were 6 in progress).  
+## High level driver based on BLE_ESP32
+`xdrv_47_BLE_ESP32` is designed to be used by other upper-level drivers which need to use BLE advertisements or interact with BLE devices. `xsns_62_MI_ESP32_BLE_ESP32.ino` and `xsns_52_ibeacon_BLE_ESP32.ino` are example of such driver.
 
-We COULD alleviate this by running multiple BLE clients at the same time.  The driver has been designed so that this could be possible in the future, but first we must establish it’s true stability in use.
+Such a driver must depend on BLE_ESP32 feature and code whuld be wrapped within : 
+```
+#ifdef USE_BLE_ESP32
+#ifdef USE_your_driver_name
+#include "xdrv_47_BLE_ESP32.h"
 
-## Creating a driver which uses BLE
-xdrv_47_BLE_ESP32 is designed to be used by other drivers which need to use BLE advertisements or interact with BLE devices.
+// your driver code
 
-Two drivers that use BLE_ESP32 are:
-tasmota\xsns_62_MI_ESP32_BLE_ESP32.ino
-tasmota\xsns_52_ibeacon_BLE_ESP32.ino
-
-Please make your driver depends upon 
-
-`#ifdef USE_BLE_ESP32`
-
-Include the file 
-`#include "xdrv_47_BLE_ESP32.h"`
+#endif // #ifdef USE_your_driver_name
+#endif // #ifdef USE_BLE_ESP32
+```
 
 All functions and constants are in namespace BLE_ESP32::
 
-### ‘Hearing’ advertisements:
+### Receiving advertisements:
 
 Create a function like:
 
@@ -567,16 +526,11 @@ Register this callback with
 
 `BLE_ESP32::registerForAdvertismentCallbacks("MyDriverName",  MyDriverNameAdvertismentCallback);`
 
-
-
 Performing Read, Write on a device, and/or requesting the next Notify:
 
-The BLE operations are controlled by:
+The BLE operations are controlled by a structure `BLE_ESP32::generic_sensor_t *op`
 
-A structure:
-`BLE_ESP32::generic_sensor_t *op = nullptr;`
-
-Functions:
+Creating a new functions:
 ```
   // ALWAYS use this function to create a new one.
   int res = BLE_ESP32::newOperation(&op);
@@ -598,12 +552,8 @@ Operation once per second.  Similarly, completed operations are only examine onc
 Whilst an operation is in progress, Adverts will stop coming in.
 
 Operations have a status, +ve -> in progress or success. -ve -> failed.
-You can get the name of a status from BLE_ESP32::getStateString(state);
-States are from the set defined in the .h file GEN_STATE_XXXX
-
-
-
-
+You can get the name of a status from `BLE_ESP32::getStateString(state)`.
+States are defined in the header file as `GEN_STATE_XXXX`.
 
 A generic function for running an operation may be:
 ```
@@ -635,11 +585,8 @@ int myspecialdatamodifyer(BLE_ESP32::generic_sensor_t *op){
   // change the data to write based on the data read.
 }
 
-
-
 #define OPTYPE_READ 0
 #define OPTYPE_READMODIFYWRITE 1
-
 
 bool BLEOperation( utin8_t *addr, int optype, const char *svc, const char *charactistic, 
   const char *notifychar = nullptr, const uint8_t *data = nullptr, int datalen = 0) {
@@ -709,37 +656,53 @@ bool BLEOperation( utin8_t *addr, int optype, const char *svc, const char *chara
 ### Other callbacks:
 
 You can register to know when a scan ends, and also for ALL operations:
+```
 void registerForOpCallbacks(const char *tag, BLE_ESP32::OPCOMPLETE_CALLBACK* pFn);
 void registerForScanCallbacks(const char *tag, BLE_ESP32::SCANCOMPLETE_CALLBACK* pFn);
-
+```
 These are not normally required for a driver.
 
 
 ### Other functions:
-A temporary safe logging mechanism.  This has a max of 40 chars, and a max of 30 slots per 50ms.
-This will cause logs to be written if called from a thread other than the main thread/task, but not cause problems with corruption.  
+
+### A temporary safe logging mechanism.
+
+This has a max of 40 chars, and a max of 30 slots per 50ms. This will cause logs to be written if called from a thread other than the main thread/task, but not cause problems with corruption.  
+```
 int BLE_ESP32::SafeAddLog_P(uint32_t loglevel, PGM_P formatP, ...);
+```
 
+#### Interpreting an address supplied by the user:
 
-Interpreting an address supplied by the user:
-Please use this function.
+```
 int BLE_ESP32::getAddr(uint8_t *dest, char *src);
-Returns 0 for invalid/not found, 1 for MAC parsed, 2 for Alias found.
-This will interpret AABBCCDDEEFF or AA:BB:CC:DD:EE:FF or an alias set with BLEAlias.
-dest must be `uint8_t addr[6];`
-Establishing if a device is still present, or get it’s age:
-Please use this function.
+```
+Where `dest` must be `uint8_t addr[6];`
+
+Returns:
+
+* `0` for invalid/not found, 
+* `1` for MAC parsed,
+* `2` for Alias found.
+
+This will interpret `AABBCCDDEEFF` or `AA:BB:CC:DD:EE:FF` or an alias set with `BLEAlias`.
+
+#### Establishing if a device is still present, or get it’s age:
+
+```
 int BLE_ESP32::devicePresent(uint8_t*mac);
-Where mac is the BINARY mac address, array of 6 uint8_t
-Returns 0 for the device having timed out, or age in seconds.
-</details>
+```
+Where `mac` is the BINARY mac address as `uint8_t mac[6]`
+
+Returns:
+
+* `0` for the device having timed out, or
+* age in seconds.
 
 
 ## EQ3 radiator valve driver
-<details>
-  <summary>Click to expand xdrv_49_BLE_EQ3_TRV</summary>
 
-This driver is for controlling the Bluetooth version of the EQ3 radiator valves.
+`xdrv_49_BLE_EQ3_TRV` is a driver based on `xdrv_47_BLE_ESP32` for controlling the Bluetooth version of the EQ3 radiator valves.
 
 To enable the driver, you must have the following:
 
@@ -752,65 +715,73 @@ The EQ3 valves can be controlled and polled via BLE
 
 To list devices and/or see pairing, BLE Active scan must be enabled (command "BLEScan 1", or from configuration).
 
-You MAY use Aliases if set using BLE commands in place of MAC address.
+You MAY use Aliases using `BLEAlias` command in place of MAC address.
 
 The driver recognises the following BLE names as EQ3 devices:
-"CC-RT-BLE"
-"CC-RT-BLE-EQ"
-"CC-RT-M-BLE"
+
+* "CC-RT-BLE"
+* "CC-RT-BLE-EQ"
+* "CC-RT-M-BLE"
 
 ### Commands:
 
-trv reset - sets retries to zero and finishes the current command
-trv devlist - report seen devices.  Active scanning required, not passive, as it looks for names
-trv scan - same as devlist
-trv MAC state - report general state (see below for MQTT)
-trv MAC raw (hex to send) - send a raw command
-trv MAC on - set temp to 30 -> display ON on EQ3
-trv MAC off - set temp to 4.5 -> display OFF on EQ3
-trv MAC boost - set boost
-trv MAC unboost - turn off boost
-trv MAC lock - manual lock of physical buttons
-trv MAC unlock - manual unlock of physical buttons
-trv MAC auto - set EQ3 to auto mode
-trv MAC manual - set EQ3 to manual mode
-trv MAC eco - set EQ3 to eco mode?
-trv MAC day - set EQ3 to day temp
-trv MAC night - set EQ3 to night temp
-trv MAC settemp 20.5 - set EQ3 to temp
-trv MAC settime - set time to Tasmota time (untested)
-trv MAC settime (hex as per esp32_mqtt_eq3) - set time
-trv MAC offset 1.5 - set offset temp
-trv MAC setdaynight 22 17.5 - set day and night mode temps
-trv MAC setwindowtempdur 12.5 30 - set window open temp and duration in mins
+Command|Parameters and description
+:---|:---
+trv reset|Sets retries to zero and finishes the current command
+trv devlist|Reports seen devices. Active scanning required, not passive, as it looks for names
+trv scan|Same as devlist
+trv MAC state|Reports general state (see below for MQTT)
+trv MAC raw|Sends a raw command (in hexadecimal)
+trv MAC on|Sets temp to 30. Displays ON on EQ3
+trv MAC off|Sets temp to 4.5. Display OFF on EQ3
+trv MAC boost|Turns on boost
+trv MAC unboost|Turn off boost
+trv MAC lock|Locks physical buttons
+trv MAC unlock|Unlock physical buttons
+trv MAC auto|Sets EQ3 to auto mode
+trv MAC manual|Sets EQ3 to manual mode
+trv MAC eco|Sets EQ3 to eco mode
+trv MAC day|Sets EQ3 to day temp
+trv MAC night|Sets EQ3 to night temp
+trv MAC settemp 20.5|Sets EQ3 to temp
+trv MAC settime|Sets time to Tasmota time (untested)
+trv MAC settime|Sets time (hex as per esp32_mqtt_eq3)
+trv MAC offset 1.5|Sets offset temp
+trv MAC setdaynight 22 17.5|Sets day and night mode temps
+trv MAC setwindowtempdur 12.5 30|Set window open temp and duration in mins
+trv MAC reqprofile <0-6>|Recall a profile for a day of the week.
+trv MAC setprofile <0-6> 20.5-07:30,17-17:00,22.5-22:00,17-24:00|Define a profile with up to 7 temp-HH:MM)
 
-trv MAC reqprofile <0-6> - request a profile for a day fo the week.
-trv MAC setprofile <0-6> 20.5-07:30,17-17:00,22.5-22:00,17-24:00 (up to 7 temp-HH:MM) - set a profile for a day of the week.
+**Barbudor Note : Day of week 0-6 : which day is 0 ? Sunday or Monday ?**
 
 Commands may also be sent over MQTT in the normal way, but in addition to:
+```
+cmnd/%topic%/EQ3/MAC|Alias/cmd payload=params
+```
+**Barbudor Note: Above is not clear. Can you give exemples ?**
 
-cmnd/tasmota_E89E98/EQ3/MAC|Alias/cmd payload=params
+### Responses to trv commands
 
-
-### Responses:
 In response to the commands above, you will get an immediate response:
-`MQT: stat/tasmota_esp32/RESULT = {"trv":"Done|queued|ignoredbusy|invcmd|cmdfail|invidx"}`
+```
+MQT: stat/%topic%/RESULT = {"trv":"Done|queued|ignoredbusy|invcmd|cmdfail|invidx"}
+```
+* `Done`: The command was of a type which provides an immediate result.
+* `Queued`: The command will be processed by BLE shortly.
+* `Ignorebusy`: You may only have one BLE command in progress at a time.
+* `Cmdfail`: Failed to queue the command. Maybe other current operations have filled the BLE queu or other fatal failure.
+* `Invidx`: Invalid index. All the commands above are equivalent to `trv1`. You would get this if you use `trv0` or `trv2` explicitly.
 
-Done - the command was of a type which provides an immediate result.
-Queued - the command will be processed by BLE shortly.
-Ignorebusy - You may only have one BLE command in progress at a time.
-Cmdfail - failed to queue the command - maybe other things have ALL available BLE queued commands? - or other fatal failure.
-Invidx - all the commands above are ‘trv1’, so you would get this if you use trv0 or trv2 explicitly.
+**Barbudor Note : Invalid index should return "Command Error" as per tasmota standard**
 
+### Results of TRV commands:
 
-### Results of BLE commands:
+Results are sent on MQTT to `stat/%topic%/EQ3/MAC` such as:
+```
+MQT: stat/%topic%/EQ3/001A22092CDB = {"trv":"00:1a:22:09:2c:db","blestate":"FAILCONNECT","retriesremain":3}
+```
 
-Results are sent on MQTT to:
-stat/tasmota_esp32/EQ3/MAC
-e.g.
-`MQT: stat/tasmota_esp32/EQ3/001A22092CDB = {"trv":"00:1a:22:09:2c:db","blestate":"FAILCONNECT","retriesremain":3}`
-
-normal:
+Normal message:
 ```
 tele/tasmota_E89E98/EQ3/001A22092EE0 = {
   "trv":"00:1a:22:09:2e:e0",
@@ -825,23 +796,28 @@ tele/tasmota_E89E98/EQ3/001A22092EE0 = {
   "state":"unlocked",
   "battery":"GOOD"
 }
-``
+```
 
-holiday:
-as above, but adds ,"holidayend":"YY-MM-DD HH:MM"
+Holiday message: as above, but adds `"holidayend":"YY-MM-DD HH:MM"`.
 
-when trv mac reqprofile is used:
-`tele/tasmota_E89E98/EQ3 = {"trv":"00:1a:22:09:2e:e0","blestate":DONENOTIFIED,"raw":"02010900042C", "profiledayN":"20.5-07:30,17.0-17:00,22.5-22:00,17.0-24:00"}`
-where N is the day (0-6).
+On `trv MAC reqprofile` command, response is :
+```
+tele/tasmota_E89E98/EQ3 = {"trv":"00:1a:22:09:2e:e0","blestate":DONENOTIFIED,"raw":"02010900042C", "profiledayN":"20.5-07:30,17.0-17:00,22.5-22:00,17.0-24:00"}
+```
+where N is the day of week (0-6).
 
-when trv mac setprofile is used:
-`tele/tasmota_E89E98/EQ3 = {"trv":"00:1a:22:09:2e:e0","blestate":DONENOTIFIED,"raw":"02010900042C","profiledayset":N}`
-where N is the day (0-6).
+On `trv MAC setprofile` command, response is:
+```
+tele/tasmota_E89E98/EQ3 = {"trv":"00:1a:22:09:2e:e0","blestate":DONENOTIFIED,"raw":"02010900042C","profiledayset":N}
+```
+where N is the day of week (0-6).
 
-on error:
-`tele/tasmota_E89E98/EQ3 = {"trv":"00:1a:22:09:2e:e0","blestate":"FAILxxxx","retriesremain":<1-3>}`
-when retries exhausted:
-`tele/tasmota_E89E98/EQ3 = {"trv":"00:1a:22:09:2e:e0","blestate":"FAILxxxx"}`
+On error, response is
+```
+tele/tasmota_E89E98/EQ3 = {"trv":"00:1a:22:09:2e:e0","blestate":"FAILxxxx","retriesremain":<1-3>}
+```
 
-The driver will try a command three times.
-</details>
+The driver will try a command three times. When retries are exhausted, response is:
+```
+tele/tasmota_E89E98/EQ3 = {"trv":"00:1a:22:09:2e:e0","blestate":"FAILxxxx"}
+```
