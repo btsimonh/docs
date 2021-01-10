@@ -1,14 +1,22 @@
-Bluetooth in Tasmota consists of:
+Bluetooth Low Energy in Tasmota consists of:
 
 ## ESP8266 or ESP32 via HM-1x or nRF24L01(+)
 This allows for the receiving of BLE advertisments from BLE devices, including "iBeacons"
-For this style, `#undef USE_BLE_ESP32`
+For this style, 
+
+`#undef USE_BLE_ESP32`
 
 ## ESP32 native Bluetooth Low Energy support
 This allows for the receiving of BLE advertisments from BLE devices, including "iBeacons" and BLE sensors, but also for the control of simple BLE devices, providing for reading, writing and receiving notifications. 
-For this style, #define USE_BLE_ESP32 
+For this style, 
+
+`#define USE_BLE_ESP32` 
+
 Be aware, enabling of the native BLE on ESP32 has an impact on wifi performance.  Although later SDK helped a bit, expect more lag on the web interface and on MQTT.
-If only controlling BLE devices, then scanning can be disabled, wnhich will minimise wifi impact. 
+If only controlling BLE devices, then scanning can be disabled, which will minimise wifi impact.
+
+This is compiled by default in the Sensors firmware, but you still need to enable it using the web interface `configure BLE` button or setoption115 1.
+
 
 !!! info "Presence detection with iBeacons or BLE sensor gateway using HM-1x or nRF24L01(+) peripherals"
 
@@ -17,16 +25,19 @@ If only controlling BLE devices, then scanning can be disabled, wnhich will mini
 !!! info "This feature is included only in tasmota-sensors.bin"
 Otherwise you must [compile your build](Compile-your-build). Add the following to `user_config_override.h`:
 
+### For ESP8266 or ESP32 via HM-1x or nRF24L01(+)
 ```
-#ifndef USE_IBEACON
+#undef USE_BLE_ESP32
 #define USE_IBEACON          // Add support for bluetooth LE passive scan of ibeacon devices 
-#endif
 ```
 ----
   
 Tasmota uses a BLE 4.x module to scan for [iBeacon](https://en.wikipedia.org/wiki/IBeacon) devices. This driver is working with [HM-10 and clones](HM-10) and [HM16/HM17](HM-17) Bluetooth modules and potentially with other HM-1x modules depending on firmware capabilities.
 
-### Using ESP32 built-in Bluetooth
+!!! tip
+    If using an extenral module, When first connected some modules will be in peripheral mode. You have to change it to central mode using commands `Sensor52 1` and `Sensor52 2`.
+
+### For ESP32 built-in Bluetooth
 
 You must [compile your build](Compile-your-build) for the ESP32 (since v9.1). Change the following to `user_config_override.h`:
 
@@ -36,6 +47,7 @@ You must [compile your build](Compile-your-build) for the ESP32 (since v9.1). Ch
   #define USE_IBEACON_ESP32    // Use internal ESP32 Bluetooth module
 #endif // ESP32
 ```
+(note that when using `USE_BLE_ESP32`, you can combine iBEacon features with other BLE features)
 
 ### Features
 For a list of all available commands see [Sensor52](Commands.md#sensor52) command.  
@@ -56,8 +68,6 @@ tele/ibeacon/SENSOR = {"Time":"2021-01-02T12:08:40","IBEACON":{"MAC":"A4C1387FC1
 
 Additional fields will be present depending upon the beacon, e.g. NAME, UID, MAJOR, MINOR.
 
-!!! tip
-    If using an extenral module, When first connected some modules will be in peripheral mode. You have to change it to central mode using commands `Sensor52 1` and `Sensor52 2`.
 
 ### Supported Devices
 <img src="../_media/bluetooth/nRF51822.png" width=155 align="right">
@@ -83,8 +93,7 @@ Cheap "iTag" beacons with a beeper. The battery on these lasts only about a mont
   
   
   
-  
-## Tasmota and BLE-sensors
+## Bluetooth Low Energy Sensors
 
 Different vendors offer Bluetooth solutions as part of the XIAOMI family often under the MIJIA-brand (while AQUARA is the typical name for a ZigBee sensor).  
 The sensors supported by Tasmota use BLE (Bluetooth Low Energy) to transmit the sensor data, but they differ in their accessibilities quite substantially.  
@@ -186,9 +195,11 @@ active: data is received via bidrectional connection to the sensor
   
 #### Devices with payload encryption  
   
-The LYWSD03MMC, MHO-C401 and the MJYD2S will start to send advertisements with encrypted sensor data after pairing it with the official Xiaomi app. Out-of-the-box the sensors do only publish a static advertisement.  
-It is possible to do a pairing and get the necessary decryption key ("bind_key") here: https://atc1441.github.io/TelinkFlasher.html  
+The LYWSD03MMC, MHO-C401 and the MJYD2S will start to send advertisements with encrypted sensor data after pairing it with the official Xiaomi app (using TelinkFlasher to get the key also acts as a trigger to start sending?). Out-of-the-box the sensors do only publish a static advertisement.  
+It is possible to do a pairing and get the necessary decryption key ("bind_key") here: https://atc1441.github.io/TelinkFlasher.html - note you do not have to flash the ATC firmware! 
 This project also provides a custom firmware for the LYWSD03MMC, which then becomes an ATC and is supported by Tasmota too. Default ATC-setting will drain the battery more than stock firmware, because of very frequent data sending.  
+
+For NRF based BLE:
 This key and the corresponding MAC of the sensor can be injected with the NRFKEY-command (or NRFMJYD2S). It is probably a good idea to save the whole config as RULE like that:  
   
 ```haskell
@@ -196,7 +207,16 @@ rule1 on System#Boot do backlog NRFkey 00112233445566778899AABBCCDDEEFF112233445
 ```  
 (key for two sensors, 6 sensors per page in the WebUI, turn off all sensors, turn on LYWS03)  
 
-(note: for the native ESP32 MI32 driver, the key command is MI32Key, not NRFkey)
+
+For `USE_BLE_ESP32`, an encrypted sensor will show a link to the telelink flasher page, marked as 'NoKey' if an encrypted packet has been received and no key is present.
+
+For the native BLE version of the driver (MI32), the key command is
+
+`MI32Keys mac|alias=key mac|alias=key`
+or
+`MI32Key keymac`
+
+where mac is a mac address, an alias may be used instead (see BLE commands).  The Key is the 32 character (16 byte) key retrieved by TelelinkFlasher.  `MI32Key is retains for b ackward compatibility, needing a 44 character combination of key and MAC.
 
 LYWSD03MMC sends encrypted sensor data every 10 minutes. As there are no confirmed reports about correct battery presentation of the sensor (always shows 99%), this function is currently not supported.  
 MJYD2S sends motion detection events and 2 discrete illuminance levels (1 lux or 100 lux for a dark or bright environment). Additionally battery level and contiguous time without motion in discrete growing steps (no motion time = NMT).    
@@ -209,7 +229,7 @@ The sensor namings are based on the original sensor names and shortened if appro
 All sensors are treated as if they are physically connected to the ESP8266 device. For motion and remote control sensors MQTT-messages will be published in (nearly) real time.
 The ESP32 and the HM-1x-modules are real BLE devices whereas the NRF24L01 (+) is only a generic 2.4 GHz transceiver with very limited capabilities.  
 
-With the USE_BLE_ESP32 define set, the ESP32 Bluetooth allows for both iBeacon and Sensors to be used simultaneously in one build.
+With the `USE_BLE_ESP32` define set, the ESP32 Bluetooth allows for both iBeacon and Sensors to be used simultaneously in one build.
 It also allows for some basic BLE configuration and veiwing through the web interface.
 
 
