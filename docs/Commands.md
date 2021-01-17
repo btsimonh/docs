@@ -313,7 +313,8 @@ BLEName<a class="cmnd" id="blename"></a>|Read or write the name of a BLE device.
 BLEDevices<a class="cmnd" id="bledevices"></a>|Cause a list of known devices to be sent on MQTT, or Empty the list of known devices.<BR>`BLEDevices0` = clear the known devices list.<BR>`BLEDevices` = Cause the known devices list to be published on stat/TASName/BLE.
 BLEMaxAge<a class="cmnd" id="blemaxage"></a>|Set the timeout for device adverts.<BR>`BLEMaxAge n` = set the devices timeout to n seconds.<BR>`BLEMaxAge` = display the device timeout.
 BLEOp<a class="cmnd" id="bleop"></a>|Perform a simple active BLE operation (read/write/notify).<BR>`BLEOp0` = trigger publish of operations in progress to MQTT at stat/TASName/BLE.<BR>`BLEOp (parameters)` = queue a BLE operation<BR>Paramaters:0<BR>m:mac|alias` - the device to operate on<BR>`s:uuid` - the service to use<BR>`c:uuid` - the read or write characteristic to use<BR>`n:uuid` - the notify characteristic to use register for<BR>`w:hexdata` - data to write in hex<BR>`r` - perform a read<BR>`u:number` - a unique reference to recognise responses by<BR>`go` - start the operation.<BR>example: `BLEOp m:A4C1386A1E24 s:180f c:2a19 r go`
-BLEDebug<a class="cmnd" id="bleop"></a>|Set BLE debug level.<BR>`BLEDebug` = show extra debug information<BR>`BLEDebug0` = suppress extra debug
+BLEDebug<a class="cmnd" id="bledebug"></a>|Set BLE debug level.<BR>`BLEDebug` = show extra debug information<BR>`BLEDebug0` = suppress extra debug
+BLEAddrFilter<a class="cmnd" id="bleaddrfilter"></a>|Set BLE Address type filter.<BR>`BLEAddrFilter` = show filter level<BR>`BLEAddrFilter n` = set BLE address type filter 0..3 - default 3.  Ignores BLE address types > filter value.  Set 0 to ONLY see public addresses.
 
 ### BLE MI/Xiaomi sensors
 
