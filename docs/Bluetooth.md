@@ -242,9 +242,13 @@ The current way of storing these keys on the ESP32 is to use RULES like that (fo
 rule1 on System#Boot do backlog MI32key 00112233445566778899AABBCCDDEEFF112233445566; MI32key 00112233445566778899AABBCCDDEEFFAABBCCDDEEFF endon
 ```  
 This option is currently not available for the HM-10 because of memory considerations as part of the standard sensor-firmware package.  
-  
+
+Note: in the latest Tasmota, a blue link will show next to a device if the device needs a key.  Clicking this likn will take you to a page guiding you to create a key, and at the end, puts that key into Tasmota, leaving you on a page with the required command to add to your rule. 
+
 2. Flash custom ATC-firmware  
 Use the same https://atc1441.github.io/TelinkFlasher.html to flash a custom ATC-firmware on the LYWSD03MMC. This will work out of the box with all three Tasmota-drivers. There is a slight chance of bricking the sensor, which would require some soldering and compiling skills to un-brick. This firmware does send data more frequently and is a little bit more power hungry than the stock firmware.  
+There is also another new custom firmware here https://github.com/pvvx/ATC_MiThermometer with it's own flasher/config page.
+The Custom mode is supported in latest Tasmota ESP32, but beware not to use 'All' mode.
   
 3. Use active connections  
 By default on the HM-10 (for legacy reasons) and at compile-time selectable on the ESP32 is the method to connect to the sensor from time to time. This circumvents the data encryption. This is very power hungry and drains the battery fast. Thus it is only recommended as fallback mechanism.
@@ -374,7 +378,9 @@ This will update every day at 00:30 AM.
   
    
 ### Beacon  
-  
+
+(now removed if using BLE_ESP32)
+
 A count-up-timer starts for every beacon a  with every received advertisement, starting with 0.  
   
 TELE-output:  
@@ -389,6 +395,20 @@ RULE-example:
 CID - company identifier  
 SVC - service data  
 UUID - service or class UUID  
+
+
+### Notes on BLE Aliases
+
+If using BLE_ESP32, then you may set Aliases for mac addresses using
+`BLEAlias mac=name mac2=name2`
+And then in most commands, you may refer to the alias or the mac address.
+This may be useful if, for example, you wish to send cmnds to the group address, but have them ignored by some Tasmota.
+e.g. you may set
+`BLEAlias 112233445566=livingroomvalve`
+on a Tasmota close to the livingroom, but not on other Tasmota, such that
+`cmnd/grptopic/EQ3/livingroom/setdaynight with payload "22 17.5"`
+is only actioned by that Tasmota.
+
 
 
 ## EQ3 radiator valve driver
@@ -447,7 +467,16 @@ trv MAC setprofile <0-6> 20.5-07:30,17-17:00,22.5-22:00,17-24:00|Define a profil
 
 Commands may also be sent over MQTT in the normal way, but in addition to:
 ```
-cmnd/%topic%/EQ3/MAC|Alias/cmd payload=params
+cmnd/%topic%/EQ3/MAC|Alias/cmd params
+```
+
+e.g.
+```
+cmnd/MyTasmota/EQ3/001A22092EE0/settemp with payload "22.5"
+```
+or
+```
+cmnd/MyTasmota/EQ3/livingroom/setdaynight with payload "22 17.5"
 ```
 **Barbudor Note: Above is not clear. Can you give exemples ?**
 
