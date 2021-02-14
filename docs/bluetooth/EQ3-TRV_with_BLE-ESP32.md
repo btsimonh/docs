@@ -1,5 +1,7 @@
 This driver alows the control of Eqiva TRV's (i.e. Thermostat Radiator Valve). Compatible models are:
 
+[not in Tasmota source yet see here](https://github.com/btsimonh/Tasmota/tree/EQ3_2020-02-04)
+
 * Eqiva eQ-3 Bluetooth Smart (141771E0/141771E0A)
 * Eqiva eQ-3 Bluetooth Smart(UK Version) (142461D0)
 
@@ -99,6 +101,15 @@ battery|battery status of the TRV
 holidayend|end of holiday mode
 
 ### Available commands
+
+#### Base commands
+Command|Parameters
+:---|:---
+trvperiod<a class="cmnd" id="trvperiod"></a>|Display/Set the EQ3 poll interval in seconds
+trvonlyaliased<a class="cmnd" id="trvonlyaliased"></a>|Display/Set the EQ3 OnlyAliased parameter<BR>set to 1 for any aliased BLE devices<BR>set to 2 for only aliases starting with `EQ3`
+TrvMatchPrefix<a class="cmnd" id="trvmatchprefix"></a>|Display/Set the EQ3 MatchPrefix parameter<BR>set to 1 to not require active scan to identify EQ3 - identify from MAC (default)<BR>Set to 0 to disbale this matching
+
+#### TRV subcommands
 
 Command|Parameters
 :---|:---

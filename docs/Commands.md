@@ -306,17 +306,29 @@ See also|[`SetOption8`](#setoption8)  - Show temperature in Celsius *(default)* 
 Command|Parameters
 :---|:---
 BLEMode<a class="cmnd" id="blemode"></a>|Change the operational mode of the BLE driver.<BR>`BLEMode0` = disable regular BLE scans.<BR>`BLEMode1` = BLE scan on command only.<BR>`BLEMode2` = regular BLE scanning (default).
+BLEPeriod<a class="cmnd" id="bleperiod"></a>|Set the period for publish of BLE data<BR>`<value>` = set interval in seconds
 BLEScan<a class="cmnd" id="blescan"></a>|Cause/Configure BLE a scan<BR>`BLEScan0 0..1` = enable or disable Active scanning. (an active scan will gather extra data from devices, including name)<BR>`BLEScan` = Trigger a 20s scan now if in BLEMode1<BR>`BLEScan n` = Trigger a scan now for n seconds if in BLEMode1
 BLEDetails<a class="cmnd" id="bledetails"></a>|Display details about recevied adverts<BR>`BLEDetails0` = disable showing of details.<BR>`BLEDetails1 mac|alias` = show the next advert from device mac|alias<BR>`BLEDetails2 mac|alias` = show all advert from device mac|alias (some may be lost).<BR>`BLEDetails3` = show all adverts from all devices (some will be lost).
 BLEAlias<a class="cmnd" id="blealias"></a>|Set Alias names for devices.  A device may be referred to by it's alias in subsequent commands<BR>`BLEAlias mac=alias mac=alias ...` = set one or more aliases from devices.<BR>`BLEAlias2` = clear all aliases.
 BLEName<a class="cmnd" id="blename"></a>|Read or write the name of a BLE device.<BR>`BLEName mac|alias` = read the name of a device using 1800/2A00.<BR>`BLEName mac|alias` = write the name of a device using 1800/2A00 - many devices are read only.
 BLEDevices<a class="cmnd" id="bledevices"></a>|Cause a list of known devices to be sent on MQTT, or Empty the list of known devices.<BR>`BLEDevices0` = clear the known devices list.<BR>`BLEDevices` = Cause the known devices list to be published on stat/TASName/BLE.
 BLEMaxAge<a class="cmnd" id="blemaxage"></a>|Set the timeout for device adverts.<BR>`BLEMaxAge n` = set the devices timeout to n seconds.<BR>`BLEMaxAge` = display the device timeout.
-BLEOp<a class="cmnd" id="bleop"></a>|Perform a simple active BLE operation (read/write/notify).<BR>`BLEOp0` = trigger publish of operations in progress to MQTT at stat/TASName/BLE.<BR>`BLEOp (parameters)` = queue a BLE operation<BR>Paramaters:0<BR>m:mac|alias` - the device to operate on<BR>`s:uuid` - the service to use<BR>`c:uuid` - the read or write characteristic to use<BR>`n:uuid` - the notify characteristic to use register for<BR>`w:hexdata` - data to write in hex<BR>`r` - perform a read<BR>`u:number` - a unique reference to recognise responses by<BR>`go` - start the operation.<BR>example: `BLEOp m:A4C1386A1E24 s:180f c:2a19 r go`
+BLEOp<a class="cmnd" id="bleop"></a>|Perform a simple active BLE operation (read/write/notify).<BR>see separate description in source code
 BLEDebug<a class="cmnd" id="bledebug"></a>|Set BLE debug level.<BR>`BLEDebug` = show extra debug information<BR>`BLEDebug0` = suppress extra debug
 BLEAddrFilter<a class="cmnd" id="bleaddrfilter"></a>|Set BLE Address type filter.<BR>`BLEAddrFilter` = show filter level<BR>`BLEAddrFilter n` = set BLE address type filter 0..3 - default 3.  Ignores BLE address types > filter value.  Set 0 to ONLY see public addresses.
 
-### BLE MI/Xiaomi sensors
+### BLE iBeacon (ESP32)
+
+Command|Parameters
+:---|:---
+iBeacon<a class="cmnd" id="ibeacon"></a>|Show or set enable for the iBeacon driver<BR>`iBeacon` = Display 0|1<BR>`iBeacon 0` = disable<BR>`iBeacon 1` = enable.
+iBeaconOnlyAliased<a class="cmnd" id="ibeacononlyaliased"></a>|Show or set OnlyAliased for the iBeacon driver<BR>`iBeaconOnlyAliased` = Display 0|1<BR>`iBeaconOnlyAliased 0` = enable iBeacon to hear ALL BLE devices<BR>`iBeaconOnlyAliased 1` = enable iBeacon to hear ONLY devices with valid BLEAlias<BR>`iBeaconOnlyAliased 2` = enable iBeacon to hear ONLY devices with valid BLEAlias starting `iB`
+iBeaconClear<a class="cmnd" id="ibeaconclear"></a>|Clear iBeacon list
+iBeaconPeriod<a class="cmnd" id="ibeaconperiod"></a>|Display or Set the period for publish of iBeacon data<BR>`iBeaconPeriod` = display interval<BR>`iBeaconPeriod ss` = set interval in seconds
+iBeaconTimeout<a class="cmnd" id="ibeacontimeout"></a>|Display or Set the timeout for iBeacon devices<BR>`iBeaconTimeout` = display timeout<BR>`iBeaconTimeout ss` = set timeout in seconds
+
+
+### BLE MI/Xiaomi sensors (ESP32)
 
 Command|Parameters
 :---|:---
