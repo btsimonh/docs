@@ -42,7 +42,6 @@ theme:
   features:
     - navigation.tabs
     - navigation.instant
-    - navigation.tabs.sticky
   font:
     text: Barlow
     code: Roboto Mono
@@ -65,8 +64,7 @@ markdown_extensions:
   - pymdownx.emoji:
   - pymdownx.betterem
   - pymdownx.caret
-  - pymdownx.highlight
-  - pymdownx.superfences
+  - codehilite
   - meta
 
 google_analytics:
@@ -77,30 +75,24 @@ extra_css:
   - 'assets/css/anchor-fix.css'
 
 nav:
-  - Home:
-    - News: index.md
-    - About.md
-    - Getting Started: Getting-Started.md
-    - Upgrading.md
-    - MQTT.md
-    - Commands: Commands.md
-    - Templates: Templates.md
-    - Components.md
-    - Modules: Modules.md
-    - Peripherals: Peripherals.md
-    - WebUI.md
-    - Compiling: Compile-your-build.md
-    - Contributing: Contributing.md
-    - Download.md
-    - Project Showcase: "https://github.com/arendst/Tasmota/discussions/categories/show-and-tell"
+  - Home: index.md
+  - About.md
+  - Getting Started: Getting-Started.md
+  - Upgrading.md
+  - MQTT.md
+  - Commands: Commands.md
+  - Templates: Templates.md
+  - Components.md
+  - Modules: Modules.md
+  - Peripherals: Peripherals.md
+  - WebUI.md
   - Features:
     - Introduction: Features.md
-    - Analog pin: ADC.md
-    - Bluetooth.md
+    - Bluetooth ESP32: bluetooth/Bluetooth-Esp32.md
+    - Bluetooth ESP8266: bluetooth/Bluetooth-Esp8266.md
     - Buttons-and-Switches.md
     - DeepSleep.md
     - Device-Groups.md
-    - Displays.md
     - Dynamic-Sleep.md
     - I2C Devices: I2CDevices.md
     - IR Communication: Tasmota-IR.md
@@ -124,7 +116,6 @@ nav:
     - Zigbee.md
     - Projects and Tutorials: Tutorials.md
     - For Developers: For-Developers.md
-  - ESP32.md
   - Smart Home Integrations:
     - Introduction: Integrations.md
     - Alexa.md
@@ -145,7 +136,10 @@ nav:
     - SmartThings: "https://github.com/hongtat/tasmota-connect"
   - Peripherals:
     - Supported-Peripherals.md
+    - Analog pin: ADC.md
     - Buzzer.md
+    - Displays.md
+    - ESP32.md
     - A4988 stepper motor controller: A4988-Stepper-Motor-Controller.md
     - AHT1x.md
     - AM2301 temperature and humidity sensor: AM2301.md
@@ -169,7 +163,6 @@ nav:
     - IR-Remote.md
     - LM75AD.md
     - MCP230xx.md
-    - MFRC522.md
     - MGC3130.md
     - MH-Z19B.md
     - MLX90614.md
@@ -207,4 +200,6 @@ nav:
     - Device-Recovery.md
     - Discord Support: https://discord.gg/Ks2Kzd4 "target=_blank"
   - Builds.md
-
+  - Compiling: Compile-your-build.md
+  - Contributing: Contributing.md
+  - Download: http://ota.tasmota.com/tasmota/release/ "target=_blank"
